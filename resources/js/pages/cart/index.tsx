@@ -163,9 +163,18 @@ export default function CartIndex({ cart: initialCart }: CartIndexProps) {
                 // Return order data for success display
                 return { order: data.order };
             } else {
-                const error = await response.json();
-                console.error('Checkout error:', error);
-                throw new Error(error.message || 'Checkout failed');
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const error = await response.json();
+                    console.error('Checkout error:', error);
+                    throw new Error(error.message || error.errors?.cart?.[0] || 'Checkout failed');
+                } else {
+                    // Handle HTML response (redirect with errors)
+                    const text = await response.text();
+                    console.error('Checkout error: Received HTML response', text);
+                    throw new Error('Checkout failed. Please check your cart and try again.');
+                }
             }
         } catch (error) {
             console.error('Checkout error:', error);
@@ -405,8 +414,19 @@ export default function CartIndex({ cart: initialCart }: CartIndexProps) {
                                                                 },
                                                             });
                                                         } else {
-                                                            const error = await response.json();
-                                                            console.error('Checkout error:', error);
+                                                            // Check if response is JSON
+                                                            const contentType = response.headers.get('content-type');
+                                                            if (contentType && contentType.includes('application/json')) {
+                                                                const error = await response.json();
+                                                                console.error('Checkout error:', error);
+                                                                // Could show error notification here
+                                                                alert(error.message || error.errors?.cart?.[0] || 'Checkout failed');
+                                                            } else {
+                                                                // Handle HTML response (redirect with errors)
+                                                                const text = await response.text();
+                                                                console.error('Checkout error: Received HTML response', text);
+                                                                alert('Checkout failed. Please check your cart and try again.');
+                                                            }
                                                         }
                                                     } catch (error) {
                                                         console.error('Checkout error:', error);

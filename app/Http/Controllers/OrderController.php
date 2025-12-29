@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\LowStockDetected;
+use App\Events\OrderProcessed;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItems;
@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -33,21 +34,17 @@ class OrderController extends Controller
             ]);
         }
 
-        // Validate stock availability before creating order
-        $isLowStock = false;
+        
         foreach ($cart->items as $cartItem) {
-            if ($cartItem->quantity > $cartItem->product->stock_quantity) {
-                $isLowStock = true;
-                $products[] = $cartItem->product;
+           // Return JSON response for AJAX requests
+            if($cartItem->product->stock_quantity < $cartItem->quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Insufficient stock for the following products',
+                ], 422);
             }
         }
 
-        if($isLowStock) {
-            LowStockDetected::dispatch($products);
-            return back()->withErrors([
-                'cart' => 'Insufficient stock for some products. Please try again later.',
-            ]);
-        }
 
         // Use database transaction to ensure data consistency
         DB::beginTransaction();
@@ -57,8 +54,7 @@ class OrderController extends Controller
             $order = Order::create([
                 'user_id' => $user->id,
             ]);
-
-            // Step 2: Create order items with current prices (snapshot prices)
+            
             foreach ($cart->items as $cartItem) {
                 // Create order item with the current product price
                 OrderItems::create([
@@ -70,6 +66,7 @@ class OrderController extends Controller
 
                 // Step 3: Update product stock (decrement by quantity ordered)
                 $cartItem->product->decrement('stock_quantity', $cartItem->quantity);
+                                
             }
 
             // Step 4: Clear cart after successful order creation
@@ -85,27 +82,23 @@ class OrderController extends Controller
                 return $item->sale_price * $item->quantity;
             });
 
-            // Return order data for frontend
-            if ($request->expectsJson() || $request->wantsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'order' => [
-                        'id' => $order->id,
-                        'total' => $orderTotal,
-                    ],
-                    'message' => 'Order placed successfully!',
-                ]);
-            }
+            OrderProcessed::dispatch($order);
 
-            return redirect()->route('home')->with([
-                'success' => 'Order placed successfully!',
-                'order_total' => $orderTotal,
-            ]);
+            // Return order data for frontend
+            return response()->json([
+                'success' => true,
+                'order' => [
+                    'id' => $order->id,
+                    'total' => $orderTotal,
+                ],
+                'message' => 'Order placed successfully!',
+            ]);           
         } catch (\Exception $e) {
             DB::rollBack();
-            
-            return back()->withErrors([
-                'cart' => 'An error occurred while processing your order. Please try again.',
+            Log::error('Error processing order: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing your order. Please try again.',
             ]);
         }
     }

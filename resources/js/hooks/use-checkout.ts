@@ -37,9 +37,18 @@ export function useCheckout({ cart, onCheckout }: UseCheckoutProps) {
                     const total = data.order?.total ?? cart?.subtotal ?? 0;
                     setOrderSuccess({ total });
                 } else {
-                    const error = await response.json();
-                    console.error('Checkout error:', error);
-                    throw new Error(error.message || 'Checkout failed');
+                    // Check if response is JSON
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const error = await response.json();
+                        console.error('Checkout error:', error);
+                        throw new Error(error.message || error.errors?.cart?.[0] || 'Checkout failed');
+                    } else {
+                        // Handle HTML response (redirect with errors)
+                        const text = await response.text();
+                        console.error('Checkout error: Received HTML response', text);
+                        throw new Error('Checkout failed. Please check your cart and try again.');
+                    }
                 }
             }
         } catch (error) {

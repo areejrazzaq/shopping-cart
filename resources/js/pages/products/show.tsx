@@ -4,6 +4,7 @@ import { SiteHeader } from '@/components/site-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getCsrfToken } from '@/utils/csrf';
+import { toast } from '@/utils/toast';
 import { home, login } from '@/routes';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
@@ -423,12 +424,34 @@ export default function ProductShow({ product }: ProductShowProps) {
                             // Return order data for success display
                             return { order: data.order };
                         } else {
-                            const error = await response.json();
-                            console.error('Checkout error:', error);
-                            throw new Error(error.message || 'Checkout failed');
+                            // Check if response is JSON
+                            const contentType = response.headers.get('content-type');
+                            if (contentType && contentType.includes('application/json')) {
+                                const error = await response.json();
+                                console.error('Checkout error:', error);
+                                
+                                // Check if it's a low stock error (insufficient stock)
+                                if (error.errors?.cart && Array.isArray(error.errors.cart)) {
+                                    // Show toastr for low stock errors with detailed message
+                                    const errorMessages = error.errors.cart.join(', ');
+                                    toast.error(errorMessages, 5000);
+                                } else {
+                                    // For all other errors, show generic "retry later" message
+                                    toast.error('Checkout failed. Please try again later.', 3000);
+                                }
+                                
+                                throw new Error(error.message || error.errors?.cart?.[0] || 'Checkout failed');
+                            } else {
+                                // Handle HTML response (redirect with errors)
+                                const text = await response.text();
+                                console.error('Checkout error: Received HTML response', text);
+                                toast.error('Checkout failed. Please try again later.', 3000);
+                                throw new Error('Checkout failed. Please check your cart and try again.');
+                            }
                         }
                     } catch (error) {
                         console.error('Checkout error:', error);
+                        toast.error('Checkout failed. Please try again later.', 3000);
                         throw error;
                     }
                 }}

@@ -5,6 +5,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
+import { ToastContainer } from './components/toast-container';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -20,7 +21,10 @@ createInertiaApp({
 
         root.render(
             <StrictMode>
-                <App {...props} />
+                <>
+                    <App {...props} />
+                    <ToastContainer />
+                </>
             </StrictMode>,
         );
     },
