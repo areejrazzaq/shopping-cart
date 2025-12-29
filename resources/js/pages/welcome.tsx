@@ -4,6 +4,7 @@ import { HeroSection } from '@/components/hero-section';
 import { OurStory } from '@/components/our-story';
 import { ProductsGrid } from '@/components/products-grid';
 import { SiteHeader } from '@/components/site-header';
+import { getCsrfToken } from '@/utils/csrf';
 import { type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -149,6 +150,38 @@ export default function Welcome({
                             fetchCart();
                         },
                     });
+                }}
+                onCheckout={async () => {
+                    try {
+                        const csrfToken = getCsrfToken();
+                        const response = await fetch('/checkout', {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                                ...(csrfToken && { 'X-CSRF-TOKEN': csrfToken }),
+                            },
+                            credentials: 'include',
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Clear cart state immediately
+                            setCart(null);
+                            // Refresh cart to ensure it's empty
+                            fetchCart();
+                            // Return order data for success display
+                            return { order: data.order };
+                        } else {
+                            const error = await response.json();
+                            console.error('Checkout error:', error);
+                            throw new Error(error.message || 'Checkout failed');
+                        }
+                    } catch (error) {
+                        console.error('Checkout error:', error);
+                        throw error;
+                    }
                 }}
             />
         </>

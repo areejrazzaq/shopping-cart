@@ -27,6 +27,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('cart.items.update');
     Route::delete('cart/items/{cartItem}', [App\Http\Controllers\CartController::class, 'destroy'])
         ->name('cart.items.destroy');
+    Route::post('checkout', [App\Http\Controllers\OrderController::class, 'checkout'])
+        ->name('checkout');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

@@ -3,6 +3,7 @@ import { Footer } from '@/components/footer';
 import { SiteHeader } from '@/components/site-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getCsrfToken } from '@/utils/csrf';
 import { home, login } from '@/routes';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
@@ -86,6 +87,12 @@ export default function ProductShow({ product }: ProductShowProps) {
 
     const cartItemCount = cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
+    // Calculate how many of this product are already in the cart
+    const quantityInCart = cart?.items.find((item) => item.product_id === product.id)?.quantity || 0;
+    
+    // Calculate available quantity (stock - already in cart)
+    const availableQuantity = Math.max(0, product.stock_quantity - quantityInCart);
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -97,8 +104,8 @@ export default function ProductShow({ product }: ProductShowProps) {
         // Ensure quantity is within valid range
         if (newQuantity < 1) {
             setQuantity(1);
-        } else if (newQuantity > product.stock_quantity) {
-            setQuantity(product.stock_quantity);
+        } else if (newQuantity > availableQuantity) {
+            setQuantity(availableQuantity);
         } else {
             setQuantity(newQuantity);
         }
@@ -108,8 +115,8 @@ export default function ProductShow({ product }: ProductShowProps) {
         const value = parseInt(e.target.value, 10);
         if (isNaN(value) || value < 1) {
             setQuantity(1);
-        } else if (value > product.stock_quantity) {
-            setQuantity(product.stock_quantity);
+        } else if (value > availableQuantity) {
+            setQuantity(availableQuantity);
         } else {
             setQuantity(value);
         }
@@ -122,8 +129,14 @@ export default function ProductShow({ product }: ProductShowProps) {
             return;
         }
 
-        // Validate quantity doesn't exceed stock
-        if (quantity > product.stock_quantity) {
+        // Validate quantity doesn't exceed available stock
+        if (quantity > availableQuantity) {
+            return;
+        }
+
+        // Check if trying to add more than available
+        if (availableQuantity === 0) {
+            // Could show a toast/notification here
             return;
         }
 
@@ -254,6 +267,11 @@ export default function ProductShow({ product }: ProductShowProps) {
                                     <label className="text-sm font-medium text-foreground">
                                         Quantity
                                     </label>
+                                    {quantityInCart > 0 && (
+                                        <p className="text-sm text-muted-foreground">
+                                            You have <span className="font-semibold text-foreground">{quantityInCart}</span> {quantityInCart === 1 ? 'item' : 'items'} of this product in your cart
+                                        </p>
+                                    )}
                                     <div className="flex items-center gap-2">
                                         <Button
                                             type="button"
@@ -261,7 +279,7 @@ export default function ProductShow({ product }: ProductShowProps) {
                                             size="icon"
                                             className="h-10 w-10 shrink-0"
                                             onClick={() => handleQuantityChange(quantity - 1)}
-                                            disabled={quantity <= 1}
+                                            disabled={quantity <= 1 || availableQuantity === 0}
                                             aria-label="Decrease quantity"
                                         >
                                             <Minus className="h-4 w-4" />
@@ -269,11 +287,12 @@ export default function ProductShow({ product }: ProductShowProps) {
                                         <Input
                                             type="number"
                                             min="1"
-                                            max={product.stock_quantity}
+                                            max={availableQuantity}
                                             value={quantity}
                                             onChange={handleQuantityInput}
                                             className="h-10 w-20 text-center text-base font-medium"
                                             aria-label="Quantity"
+                                            disabled={availableQuantity === 0}
                                         />
                                         <Button
                                             type="button"
@@ -281,13 +300,31 @@ export default function ProductShow({ product }: ProductShowProps) {
                                             size="icon"
                                             className="h-10 w-10 shrink-0"
                                             onClick={() => handleQuantityChange(quantity + 1)}
-                                            disabled={quantity >= product.stock_quantity}
+                                            disabled={quantity >= availableQuantity || availableQuantity === 0}
                                             aria-label="Increase quantity"
                                         >
                                             <Plus className="h-4 w-4" />
                                         </Button>
-                                        
                                     </div>
+                                    {availableQuantity === 0 ? (
+                                        <p className="text-sm font-medium text-destructive">
+                                            All available items are already in your cart
+                                        </p>
+                                    ) : (
+                                        <>
+                                            <p className="text-sm text-muted-foreground">
+                                                Maximum order quantity: <span className="font-semibold text-foreground">{product.stock_quantity}</span>
+                                                {quantityInCart > 0 && (
+                                                    <span className="ml-2">({availableQuantity} available to add)</span>
+                                                )}
+                                            </p>
+                                            {quantity > 0 && (
+                                                <p className="text-sm font-medium text-foreground">
+                                                    {quantity} {quantity === 1 ? 'item' : 'items'} will be added to cart
+                                                </p>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -295,7 +332,7 @@ export default function ProductShow({ product }: ProductShowProps) {
                             <div className="flex flex-col gap-4 pt-4">
                                 <Button
                                     onClick={handleAddToCart}
-                                    disabled={isAdding || isOutOfStock || quantity > product.stock_quantity}
+                                    disabled={isAdding || isOutOfStock || quantity > availableQuantity || availableQuantity === 0}
                                     size="lg"
                                     className="w-full group/btn text-base font-semibold"
                                 >
@@ -304,7 +341,11 @@ export default function ProductShow({ product }: ProductShowProps) {
                                             isAdding ? 'animate-spin' : 'group-hover/btn:scale-110'
                                         }`}
                                     />
-                                    {isAdding ? 'Adding to Cart...' : 'Add to Cart'}
+                                    {availableQuantity === 0
+                                        ? 'All items in cart'
+                                        : isAdding
+                                        ? 'Adding to Cart...'
+                                        : 'Add to Cart'}
                                 </Button>
                             </div>
 
@@ -358,6 +399,38 @@ export default function ProductShow({ product }: ProductShowProps) {
                             fetchCart();
                         },
                     });
+                }}
+                onCheckout={async () => {
+                    try {
+                        const csrfToken = getCsrfToken();
+                        const response = await fetch('/checkout', {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                                ...(csrfToken && { 'X-CSRF-TOKEN': csrfToken }),
+                            },
+                            credentials: 'include',
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Clear cart state immediately
+                            setCart(null);
+                            // Refresh cart to ensure it's empty
+                            fetchCart();
+                            // Return order data for success display
+                            return { order: data.order };
+                        } else {
+                            const error = await response.json();
+                            console.error('Checkout error:', error);
+                            throw new Error(error.message || 'Checkout failed');
+                        }
+                    } catch (error) {
+                        console.error('Checkout error:', error);
+                        throw error;
+                    }
                 }}
             />
         </>

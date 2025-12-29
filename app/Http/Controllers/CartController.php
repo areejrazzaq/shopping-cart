@@ -8,6 +8,7 @@ use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class CartController extends Controller
 {
@@ -116,7 +117,10 @@ class CartController extends Controller
             return response()->json($cartData);
         }
 
-        return response()->json($cartData);
+        // Render Inertia page for regular GET requests
+        return Inertia::render('cart/index', [
+            'cart' => $cartData,
+        ]);
     }
 
     /**

@@ -23,17 +23,8 @@ class Product extends Model
      */
     public function getImageUrlAttribute(): string
     {
-        // if (!$this->image) {
-        //     return asset('images/placeholder-product.jpg');
-        // }
-
-        // // If image is already a full URL, return it as is
-        // if (filter_var($this->image, FILTER_VALIDATE_URL)) {
-        //     return $this->image;
-        // }
 
         // Otherwise, generate URL from storage
-        \Log::info(Storage::disk('public')->url($this->image));
         return Storage::disk('public')->url($this->image);
     }
 }
