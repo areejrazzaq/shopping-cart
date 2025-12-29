@@ -1,8 +1,12 @@
+import { CartOverlay } from '@/components/cart-overlay';
+import { Footer } from '@/components/footer';
 import { HeroSection } from '@/components/hero-section';
+import { OurStory } from '@/components/our-story';
 import { ProductsGrid } from '@/components/products-grid';
-import { dashboard, login, register } from '@/routes';
+import { SiteHeader } from '@/components/site-header';
 import { type SharedData } from '@/types';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 
 interface Product {
     id: number;
@@ -18,11 +22,67 @@ interface WelcomeProps {
     products?: Product[];
 }
 
+interface CartData {
+    id: number | null;
+    items: Array<{
+        id: number;
+        product_id: number;
+        quantity: number;
+        product: Product;
+    }>;
+    subtotal: number;
+}
+
 export default function Welcome({
     canRegister = true,
     products = [],
 }: WelcomeProps) {
     const { auth } = usePage<SharedData>().props;
+    const [cartOpen, setCartOpen] = useState(false);
+    const [cart, setCart] = useState<CartData | null>(null);
+
+    const fetchCart = async () => {
+        if (!auth.user) return;
+
+        try {
+            const response = await fetch('/cart', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+                credentials: 'include',
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setCart(data);
+            }
+        } catch (error) {
+            console.error('Error fetching cart:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (cartOpen && auth.user) {
+            fetchCart();
+        }
+    }, [cartOpen, auth.user]);
+
+    // Fetch cart on mount to get item count
+    useEffect(() => {
+        if (auth.user) {
+            fetchCart();
+        }
+    }, [auth.user]);
+
+    const handleCartClick = () => {
+        if (auth.user) {
+            setCartOpen(true);
+            fetchCart();
+        }
+    };
+
+    const cartItemCount = cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
     return (
         <>
@@ -34,48 +94,63 @@ export default function Welcome({
                 />
             </Head>
             <div className="flex min-h-screen flex-col bg-background">
-                <header className="w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                    <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                        <nav className="flex items-center justify-end gap-4 py-4">
-                            {auth.user ? (
-                                <Link
-                                    href={dashboard()}
-                                    className="inline-block rounded-md border border-border px-5 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                                >
-                                    Dashboard
-                                </Link>
-                            ) : (
-                                <>
-                                    <Link
-                                        href={login()}
-                                        className="inline-block rounded-md px-5 py-2 text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
-                                    >
-                                        Log in
-                                    </Link>
-                                    {canRegister && (
-                                        <Link
-                                            href={register()}
-                                            className="inline-block rounded-md border border-border bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-foreground/90 transition-colors"
-                                        >
-                                            Register
-                                        </Link>
-                                    )}
-                                </>
-                            )}
-                        </nav>
-                    </div>
-                </header>
+                <SiteHeader
+                    cartItemCount={cartItemCount}
+                    onCartClick={handleCartClick}
+                    canRegister={canRegister}
+                />
                 <main className="flex-1">
                     <HeroSection />
                     <ProductsGrid
                         products={products}
-                        onAddToCart={(productId) => {
-                            // TODO: Implement add to cart functionality
-                            console.log('Add to cart:', productId);
+                        onAddToCart={async (productId) => {
+                            if (auth.user) {
+                                // Perform API call
+                                router.post(
+                                    '/cart/items',
+                                    { product_id: productId },
+                                    {
+                                        preserveScroll: true,
+                                        onSuccess: () => {
+                                            // Fetch updated cart and open overlay after API succeeds
+                                            fetchCart().then(() => {
+                                                setCartOpen(true);
+                                            });
+                                        },
+                                    }
+                                );
+                            }
                         }}
                     />
-                </main>
+                    <OurStory />
+                    </main>
+                <Footer />
             </div>
+            <CartOverlay
+                open={cartOpen}
+                onOpenChange={setCartOpen}
+                cart={cart}
+                onUpdateQuantity={async (itemId, newQuantity) => {
+                    router.patch(
+                        `/cart/items/${itemId}`,
+                        { quantity: newQuantity },
+                        {
+                            preserveScroll: true,
+                            onSuccess: () => {
+                                fetchCart();
+                            },
+                        }
+                    );
+                }}
+                onRemoveItem={async (itemId) => {
+                    router.delete(`/cart/items/${itemId}`, {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            fetchCart();
+                        },
+                    });
+                }}
+            />
         </>
     );
 }

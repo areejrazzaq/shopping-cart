@@ -19,8 +19,8 @@ interface ProductsGridProps {
 export function ProductsGrid({
     products,
     onAddToCart,
-    title = 'Featured Products',
-    subtitle = 'Discover our latest collection',
+    title = 'New Arrivals',
+    subtitle = 'Fall\'25',
 }: ProductsGridProps) {
     if (products.length === 0) {
         return (
@@ -38,11 +38,11 @@ export function ProductsGrid({
         <section className="py-16 lg:py-24">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Section Header */}
-                <div className="mb-12 text-center">
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-                        {title}
+                <div className="mb-12 text-left">
+                    <h2 className="text-3xl tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                        {title}                     <span className="mt-4 text-lg text-muted-foreground">{subtitle}</span>
+
                     </h2>
-                    <p className="mt-4 text-lg text-muted-foreground">{subtitle}</p>
                 </div>
 
                 {/* Products Grid */}
