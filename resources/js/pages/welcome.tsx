@@ -153,15 +153,30 @@ export default function Welcome({
                 }}
                 onCheckout={async () => {
                     try {
-                        const csrfToken = getCsrfToken();
+                        // Get CSRF token - try multiple methods
+                        let csrfToken = getCsrfToken();
+                        
+                        // If token is not found, try reading from meta tag again (might have been updated)
+                        if (!csrfToken) {
+                            const metaTag = document.querySelector('meta[name="csrf-token"]');
+                            csrfToken = metaTag?.getAttribute('content') || null;
+                        }
+
+                        if (!csrfToken) {
+                            throw new Error('CSRF token not found. Please refresh the page and try again.');
+                        }
+
                         const response = await fetch('/checkout', {
                             method: 'POST',
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'Content-Type': 'application/json',
                                 Accept: 'application/json',
-                                ...(csrfToken && { 'X-CSRF-TOKEN': csrfToken }),
+                                'X-CSRF-TOKEN': csrfToken,
                             },
+                            body: JSON.stringify({
+                                _token: csrfToken, // Include token in body as well
+                            }),
                             credentials: 'include',
                         });
 
